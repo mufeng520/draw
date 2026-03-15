@@ -1,7 +1,7 @@
 import { definePlugin } from 'mioki'
 import fs from 'fs'
 import path from 'path'
-import { createCanvas, registerFont, loadImage } from 'canvas'
+import { createCanvas, loadImage } from '@napi-rs/canvas'
 
 // Canvas 封装类
 class CanvasWrapper {
@@ -135,7 +135,7 @@ class CanvasWrapper {
 }
 
 export default definePlugin({
-  name: 'text2image',
+  name: 'draw',
   version: '1.0.0',
   async setup(ctx) {
     // 确保字体目录存在
