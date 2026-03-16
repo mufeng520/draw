@@ -259,7 +259,7 @@ export default definePlugin({
     }
     
     // 全局字体配置 - 暂时使用系统默认字体，确保中文能正常显示
-    const defaultFontFamily = 'Arial, Helvetica, sans-serif'
+    const defaultFontFamily = 'SentyZHAO,AndroidClock,MiClock,Roboto,Noto,sans-serif'
     ctx.logger.info('使用字体:', defaultFontFamily)
 
     // 生成图片的函数
