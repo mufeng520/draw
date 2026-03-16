@@ -1,16 +1,18 @@
 import { definePlugin } from 'mioki'
 import fs from 'fs'
 import path from 'path'
-import { createCanvas, loadImage } from '@napi-rs/canvas'
+import { createCanvas, loadImage, GlobalFonts } from '@napi-rs/canvas'
 
 // Canvas 封装类
 class CanvasWrapper {
   private canvas: any
   private ctx: any
+  private defaultFontFamily: string
 
-  constructor(width: number, height: number) {
+  constructor(width: number, height: number, fontFamily: string = 'SentyZHAO') {
     this.canvas = createCanvas(width, height)
     this.ctx = this.canvas.getContext('2d')
+    this.defaultFontFamily = fontFamily
   }
 
   // 设置背景
@@ -18,6 +20,18 @@ class CanvasWrapper {
     this.ctx.fillStyle = color
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
     return this
+  }
+
+  // 设置背景图片
+  async setBackgroundImage(imagePath: string) {
+    try {
+      const image = await loadImage(imagePath)
+      // 绘制背景图片，覆盖整个画布
+      this.ctx.drawImage(image, 0, 0, this.canvas.width, this.canvas.height)
+      return this
+    } catch (error) {
+      throw new Error(`加载背景图片失败: ${error}`)
+    }
   }
 
   // 绘制矩形
@@ -86,20 +100,62 @@ class CanvasWrapper {
     fontFamily?: string
     textAlign?: 'left' | 'center' | 'right'
     textBaseline?: 'top' | 'middle' | 'bottom'
+    fontWeight?: string
+    maxWidth?: number // 最大宽度，超过则自动换行
+    lineHeight?: number // 行高
   } = {}) {
     const {
       fontSize = 16,
       fontColor = '#000000',
-      fontFamily = 'Arial',
+      fontFamily = this.defaultFontFamily,
       textAlign = 'left',
-      textBaseline = 'top'
+      textBaseline = 'top',
+      fontWeight = 'normal',
+      maxWidth = 400,
+      lineHeight = fontSize * 1.5
     } = options
 
-    this.ctx.font = `${fontSize}px ${fontFamily}`
+    // 确保字体设置正确
+    try {
+      this.ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
+    } catch (error) {
+      // 如果字体设置失败，使用默认字体
+      this.ctx.font = `${fontSize}px Arial`
+    }
+    
+    // 设置文本样式
     this.ctx.fillStyle = fontColor
     this.ctx.textAlign = textAlign
     this.ctx.textBaseline = textBaseline
-    this.ctx.fillText(text, x, y)
+    
+    // 自动换行处理
+    if (maxWidth > 0) {
+      const words = text.split(' ')
+      let line = ''
+      let currentY = y
+      
+      for (let i = 0; i < words.length; i++) {
+        const testLine = line + words[i] + ' '
+        const metrics = this.ctx.measureText(testLine)
+        const testWidth = metrics.width
+        
+        if (testWidth > maxWidth && i > 0) {
+          // 绘制当前行
+          this.ctx.fillText(line, x, currentY)
+          // 开始新行
+          line = words[i] + ' '
+          currentY += lineHeight
+        } else {
+          line = testLine
+        }
+      }
+      // 绘制最后一行
+      this.ctx.fillText(line, x, currentY)
+    } else {
+      // 不换行，直接绘制
+      this.ctx.fillText(text, x, y)
+    }
+    
     return this
   }
 
@@ -112,6 +168,32 @@ class CanvasWrapper {
       } else {
         this.ctx.drawImage(image, x, y)
       }
+      return this
+    } catch (error) {
+      throw new Error(`加载图片失败: ${error}`)
+    }
+  }
+
+  // 添加圆形图片（用于头像）
+  async addCircleImage(imagePath: string, x: number, y: number, radius: number) {
+    try {
+      const image = await loadImage(imagePath)
+      
+      // 保存上下文
+      this.ctx.save()
+      
+      // 绘制圆形遮罩
+      this.ctx.beginPath()
+      this.ctx.arc(x, y, radius, 0, Math.PI * 2)
+      this.ctx.clip()
+      
+      // 绘制图片
+      const diameter = radius * 2
+      this.ctx.drawImage(image, x - radius, y - radius, diameter, diameter)
+      
+      // 恢复上下文
+      this.ctx.restore()
+      
       return this
     } catch (error) {
       throw new Error(`加载图片失败: ${error}`)
@@ -144,11 +226,43 @@ export default definePlugin({
       fs.mkdirSync(fontDir, { recursive: true })
     }
 
-    // 注册默认字体（如果需要）
-    // 这里可以添加字体文件，然后使用 registerFont 注册
+    // 尝试使用 GlobalFonts 注册 SentyZHAO 新蒂赵孟頫字体
+    const fontPath = fontDir+'/SentyZHAO新蒂赵孟頫.otf'
+    ctx.logger.info('字体文件路径:', fontPath)
+    let fontRegistered = false
+    try {
+      if (fs.existsSync(fontPath)) {
+        ctx.logger.info('字体文件存在:', fontPath)
+        if (GlobalFonts) {
+          GlobalFonts.registerFromPath(fontPath, 'SentyZHAO')
+          ctx.logger.info('SentyZHAO 新蒂赵孟頫字体注册成功')
+          fontRegistered = true
+        } else {
+          ctx.logger.warn('GlobalFonts 不可用，使用系统默认字体')
+        }
+      } else {
+        ctx.logger.warn('SentyZHAO 新蒂赵孟頫字体文件不存在:', fontPath)
+        // 尝试使用项目根目录作为备选
+        const rootFontPath = ctx.path.join(__dirname, '../../SentyZHAO新蒂赵孟頫.otf')
+        if (fs.existsSync(rootFontPath)) {
+          ctx.logger.info('使用项目根目录找到字体文件:', rootFontPath)
+          if (GlobalFonts) {
+            GlobalFonts.registerFromPath(rootFontPath, 'SentyZHAO')
+            ctx.logger.info('SentyZHAO 新蒂赵孟頫字体注册成功')
+            fontRegistered = true
+          }
+        }
+      }
+    } catch (error) {
+      ctx.logger.error('注册字体失败:', error)
+    }
+    
+    // 全局字体配置 - 暂时使用系统默认字体，确保中文能正常显示
+    const defaultFontFamily = 'Arial, Helvetica, sans-serif'
+    ctx.logger.info('使用字体:', defaultFontFamily)
 
     // 生成图片的函数
-    const generateImage = (text: string): Buffer => {
+    const generateImage = async (text: string): Promise<Buffer> => {
       // 计算文本长度，确定画布大小
       const lines = text.split('\n')
       const maxLineLength = Math.max(...lines.map(line => line.length))
@@ -156,18 +270,34 @@ export default definePlugin({
       const height = lines.length * 30 + 40
 
       // 创建画布包装器
-      const canvas = new CanvasWrapper(width, height)
+      const canvas = new CanvasWrapper(width, height, defaultFontFamily)
       
-      // 设置背景和边框
-      canvas.setBackground('#ffffff')
-        .drawRect(0, 0, width, height, 'transparent', '#e0e0e0', 2)
+      // 尝试使用背景图片
+      const backgroundImagePath = ctx.path.join(__dirname, '../../background.jpg')
+      try {
+        if (fs.existsSync(backgroundImagePath)) {
+          await canvas.setBackgroundImage(backgroundImagePath)
+          ctx.logger.info('使用背景图片:', backgroundImagePath)
+        } else {
+          // 如果没有背景图片，使用纯色背景
+          canvas.setBackground('#ffffff')
+            .drawRect(0, 0, width, height, 'transparent', '#e0e0e0', 2)
+          ctx.logger.info('使用纯色背景')
+        }
+      } catch (error) {
+        ctx.logger.error('设置背景失败:', error)
+        // 出错时使用纯色背景
+        canvas.setBackground('#ffffff')
+          .drawRect(0, 0, width, height, 'transparent', '#e0e0e0', 2)
+      }
 
-      // 绘制文本
+      // 绘制文本 - 使用更深的文字颜色，提高对比度
       lines.forEach((line, index) => {
         canvas.addText(line, 20, 20 + index * 30, {
           fontSize: 16,
-          fontColor: '#333333',
-          fontFamily: 'Arial'
+          fontColor: '#000000',
+          fontFamily: defaultFontFamily,
+          maxWidth: width - 40 // 左右各留 20 像素边距
         })
       })
 
@@ -176,31 +306,68 @@ export default definePlugin({
     }
 
     // 生成带图形的图片的函数（异步）
-    const generateImageWithShapes = async (text: string): Promise<Buffer> => {
+    const generateImageWithShapes = async (text: string, userInfo?: { avatar: string; nickname: string }): Promise<Buffer> => {
       // 计算文本长度，确定画布大小
       const lines = text.split('\n')
       const maxLineLength = Math.max(...lines.map(line => line.length))
       const width = Math.max(500, maxLineLength * 16 + 100)
-      const height = Math.max(400, lines.length * 30 + 150)
+      const height = Math.max(400, lines.length * 30 + (userInfo ? 120 : 150))
 
       // 创建画布包装器
-      const canvas = new CanvasWrapper(width, height)
+      const canvas = new CanvasWrapper(width, height, defaultFontFamily)
       
-      // 设置背景
-      canvas.setBackground('#f5f5f5')
-        .drawRect(0, 0, width, height, 'transparent', '#dddddd', 2)
+      // 尝试使用背景图片
+      const backgroundImagePath = ctx.path.join(__dirname, '../../background.jpg')
+      try {
+        if (fs.existsSync(backgroundImagePath)) {
+          await canvas.setBackgroundImage(backgroundImagePath)
+          ctx.logger.info('使用背景图片:', backgroundImagePath)
+        } else {
+          // 如果没有背景图片，使用纯色背景
+          canvas.setBackground('#ffffff')
+            .drawRect(0, 0, width, height, 'transparent', '#e0e0e0', 2)
+          ctx.logger.info('使用纯色背景')
+        }
+      } catch (error) {
+        ctx.logger.error('设置背景失败:', error)
+        // 出错时使用纯色背景
+        canvas.setBackground('#ffffff')
+          .drawRect(0, 0, width, height, 'transparent', '#e0e0e0', 2)
+      }
 
-      // 绘制装饰图形
-      canvas.drawCircle(50, 50, 30, '#ff6b6b', '#333333', 2)
-        .drawRect(100, 20, 80, 60, '#4ecdc4', '#333333', 2)
-        .drawTriangle([[200, 20], [240, 80], [160, 80]], '#45b7d1', '#333333', 2)
+      // 绘制用户头像和昵称
+      if (userInfo) {
+        try {
+          // 绘制圆形头像
+          await canvas.addCircleImage(userInfo.avatar, 80, 60, 30)
+          // 绘制昵称 - 使用更深的文字颜色，提高对比度
+          canvas.addText(userInfo.nickname, 130, 50, {
+            fontSize: 18,
+            fontColor: '#000000',
+            fontFamily: defaultFontFamily,
+            fontWeight: 'bold'
+          })
+        } catch (error) {
+          ctx.logger.error('绘制用户信息失败:', error)
+          // 如果头像加载失败，绘制默认圆形头像
+          canvas.drawCircle(80, 60, 30, '#cccccc', '#999999', 2)
+          canvas.addText(userInfo.nickname || '未知用户', 130, 50, {
+            fontSize: 18,
+            fontColor: '#000000',
+            fontFamily: defaultFontFamily,
+            fontWeight: 'bold'
+          })
+        }
+      }
 
-      // 绘制文本
+      // 绘制文本 - 使用更深的文字颜色，提高对比度
+      const textStartY = userInfo ? 120 : 120
       lines.forEach((line, index) => {
-        canvas.addText(line, 50, 120 + index * 30, {
+        canvas.addText(line, 50, textStartY + index * 30, {
           fontSize: 16,
-          fontColor: '#333333',
-          fontFamily: 'Arial'
+          fontColor: '#000000',
+          fontFamily: defaultFontFamily,
+          maxWidth: width - 100 // 左右各留 50 像素边距
         })
       })
 
@@ -218,8 +385,15 @@ export default definePlugin({
       }
 
       try {
+        // 获取用户信息
+        const userInfo = {
+          avatar: `http://q2.qlogo.cn/headimg_dl?dst_uin=${e.user_id}&spec=100`,
+          // http://q.qlogo.cn/headimg_dl?dst_uin=2018998107&spec=640&img_type=jpg
+          nickname: e.sender.nickname || `用户${e.user_id}`
+        }
+
         // 生成带图形的图片
-        const imageBuffer = await generateImageWithShapes(text)
+        const imageBuffer = await generateImageWithShapes(text, userInfo)
 
         // 发送图片
         await e.reply([
@@ -246,8 +420,14 @@ export default definePlugin({
         }
 
         try {
+          // 获取用户信息
+          const userInfo = {
+            avatar: `http://q2.qlogo.cn/headimg_dl?dst_uin=${e.user_id}&spec=100`,
+            nickname: e.sender.nickname || `用户${e.user_id}`
+          }
+
           // 生成带图形的图片
-          const imageBuffer = await generateImageWithShapes(content)
+          const imageBuffer = await generateImageWithShapes(content, userInfo)
 
           // 发送图片
           await e.reply([
