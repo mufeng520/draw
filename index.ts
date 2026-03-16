@@ -22,7 +22,7 @@ class CanvasWrapper {
     return this
   }
 
-  // 设置背景图片
+  // 设置背景图片（支持 SVG 格式）
   async setBackgroundImage(imagePath: string) {
     try {
       const image = await loadImage(imagePath)
@@ -159,7 +159,7 @@ class CanvasWrapper {
     return this
   }
 
-  // 添加图片
+  // 添加图片（支持 SVG 格式）
   async addImage(imagePath: string, x: number, y: number, width?: number, height?: number) {
     try {
       const image = await loadImage(imagePath)
@@ -174,7 +174,7 @@ class CanvasWrapper {
     }
   }
 
-  // 添加圆形图片（用于头像）
+  // 添加圆形图片（用于头像，支持 SVG 格式）
   async addCircleImage(imagePath: string, x: number, y: number, radius: number) {
     try {
       const image = await loadImage(imagePath)
@@ -229,6 +229,7 @@ export default definePlugin({
     // 尝试使用 GlobalFonts 注册 SentyZHAO 新蒂赵孟頫字体
     const fontPath = fontDir+'/SentyZHAO新蒂赵孟頫.otf'
     ctx.logger.info('字体文件路径:', fontPath)
+    ctx.logger.info(GlobalFonts.families)
     let fontRegistered = false
     try {
       if (fs.existsSync(fontPath)) {
