@@ -9,7 +9,7 @@ class CanvasWrapper {
   private ctx: any
   private defaultFontFamily: string
 
-  constructor(width: number, height: number, fontFamily: string = 'SentyZHAO') {
+  constructor(width: number, height: number, fontFamily: string = 'SentyZHAO, Arial, Helvetica, "Microsoft YaHei", sans-serif') {
     this.canvas = createCanvas(width, height)
     this.ctx = this.canvas.getContext('2d')
     this.defaultFontFamily = fontFamily
@@ -258,8 +258,8 @@ export default definePlugin({
       ctx.logger.error('注册字体失败:', error)
     }
     
-    // 全局字体配置 - 暂时使用系统默认字体，确保中文能正常显示
-    const defaultFontFamily = 'SentyZHAO,AndroidClock,MiClock,Roboto,Noto,sans-serif'
+    // 全局字体配置 - 使用完整的字体回退链，确保所有字符都能正常显示
+    const defaultFontFamily = 'SentyZHAO, "Microsoft YaHei", SimSun, SimHei, AndroidClock, MiClock, Roboto, Noto, Arial, Helvetica, sans-serif'
     ctx.logger.info('使用字体:', defaultFontFamily)
 
     // 生成图片的函数
