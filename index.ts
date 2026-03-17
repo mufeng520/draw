@@ -9,7 +9,7 @@ class CanvasWrapper {
   private ctx: any
   private defaultFontFamily: string
 
-  constructor(width: number, height: number, fontFamily: string = 'SentyZHAO, Arial, Helvetica, "Microsoft YaHei", sans-serif') {
+  constructor(width: number, height: number, fontFamily: string ) {
     this.canvas = createCanvas(width, height)
     this.ctx = this.canvas.getContext('2d')
     this.defaultFontFamily = fontFamily
@@ -220,46 +220,27 @@ export default definePlugin({
   name: 'draw',
   version: '1.0.0',
   async setup(ctx) {
-    // 确保字体目录存在
-    const fontDir = ctx.path.join(__dirname, 'fonts')
-    if (!fs.existsSync(fontDir)) {
-      fs.mkdirSync(fontDir, { recursive: true })
-    }
-
-    // 尝试使用 GlobalFonts 注册 SentyZHAO 新蒂赵孟頫字体
-    const fontPath = fontDir+'/SentyZHAO新蒂赵孟頫.otf'
-    ctx.logger.info('字体文件路径:', fontPath)
-    ctx.logger.info(GlobalFonts.families)
-    let fontRegistered = false
+    // 尝试使用 GlobalFonts 注册 unifont 字体
+    const unifontPath = ctx.path.join(__dirname, 'fonts', 'unifont-17.0.04.otf')
+    let unifontRegistered = false
     try {
-      if (fs.existsSync(fontPath)) {
-        ctx.logger.info('字体文件存在:', fontPath)
+      if (fs.existsSync(unifontPath)) {
         if (GlobalFonts) {
-          GlobalFonts.registerFromPath(fontPath, 'SentyZHAO')
-          ctx.logger.info('SentyZHAO 新蒂赵孟頫字体注册成功')
-          fontRegistered = true
+          GlobalFonts.registerFromPath(unifontPath, 'Unifont')
+          ctx.logger.info('unifont 字体注册成功')
+          unifontRegistered = true
         } else {
           ctx.logger.warn('GlobalFonts 不可用，使用系统默认字体')
         }
       } else {
-        ctx.logger.warn('SentyZHAO 新蒂赵孟頫字体文件不存在:', fontPath)
-        // 尝试使用项目根目录作为备选
-        const rootFontPath = ctx.path.join(__dirname, '../../SentyZHAO新蒂赵孟頫.otf')
-        if (fs.existsSync(rootFontPath)) {
-          ctx.logger.info('使用项目根目录找到字体文件:', rootFontPath)
-          if (GlobalFonts) {
-            GlobalFonts.registerFromPath(rootFontPath, 'SentyZHAO')
-            ctx.logger.info('SentyZHAO 新蒂赵孟頫字体注册成功')
-            fontRegistered = true
-          }
-        }
+        ctx.logger.warn('unifont 字体文件不存在:', unifontPath)
       }
     } catch (error) {
-      ctx.logger.error('注册字体失败:', error)
+      ctx.logger.error('注册 unifont 字体失败:', error)
     }
-    
-    // 全局字体配置 - 使用完整的字体回退链，确保所有字符都能正常显示
-    const defaultFontFamily = 'SentyZHAO, "Microsoft YaHei", SimSun, SimHei, AndroidClock, MiClock, Roboto, Noto, Arial, Helvetica, sans-serif'
+
+    // 全局字体配置 - 只使用 unifont 字体
+    const defaultFontFamily = unifontRegistered ? 'Unifont' : 'Arial'
     ctx.logger.info('使用字体:', defaultFontFamily)
 
     // 生成图片的函数
