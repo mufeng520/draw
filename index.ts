@@ -103,6 +103,7 @@ class CanvasWrapper {
     fontWeight?: string
     maxWidth?: number // 最大宽度，超过则自动换行
     lineHeight?: number // 行高
+    letterSpacing?: number // 字符间距
   } = {}) {
     const {
       fontSize = 16,
@@ -112,7 +113,8 @@ class CanvasWrapper {
       textBaseline = 'top',
       fontWeight = 'normal',
       maxWidth = 400,
-      lineHeight = fontSize * 1.5
+      lineHeight = fontSize * 1.5,
+      letterSpacing = 2 // 字符间距，默认2px
     } = options
 
     // 确保字体设置正确
@@ -130,33 +132,46 @@ class CanvasWrapper {
     
     // 自动换行处理
     if (maxWidth > 0) {
-      const words = text.split(' ')
+      // 对于中文和特殊字符，使用更简单的换行逻辑
+      const chars = text.split('')
       let line = ''
       let currentY = y
       
-      for (let i = 0; i < words.length; i++) {
-        const testLine = line + words[i] + ' '
+      for (let i = 0; i < chars.length; i++) {
+        const testLine = line + chars[i]
+        // 计算带字符间距的宽度
         const metrics = this.ctx.measureText(testLine)
-        const testWidth = metrics.width
+        const testWidth = metrics.width + (testLine.length - 1) * letterSpacing
         
         if (testWidth > maxWidth && i > 0) {
           // 绘制当前行
-          this.ctx.fillText(line, x, currentY)
+          this._drawTextWithSpacing(line, x, currentY, letterSpacing)
           // 开始新行
-          line = words[i] + ' '
+          line = chars[i]
           currentY += lineHeight
         } else {
           line = testLine
         }
       }
       // 绘制最后一行
-      this.ctx.fillText(line, x, currentY)
+      this._drawTextWithSpacing(line, x, currentY, letterSpacing)
     } else {
       // 不换行，直接绘制
-      this.ctx.fillText(text, x, y)
+      this._drawTextWithSpacing(text, x, y, letterSpacing)
     }
     
     return this
+  }
+
+  // 带字符间距的文本绘制
+  private _drawTextWithSpacing(text: string, x: number, y: number, letterSpacing: number) {
+    let currentX = x
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i]
+      this.ctx.fillText(char, currentX, y)
+      const metrics = this.ctx.measureText(char)
+      currentX += metrics.width + letterSpacing
+    }
   }
 
   // 添加图片（支持 SVG 格式）
@@ -218,7 +233,7 @@ class CanvasWrapper {
 
 export default definePlugin({
   name: 'draw',
-  version: '1.0.0',
+  version: '1.0.1',
   async setup(ctx) {
     // 尝试使用 GlobalFonts 注册 unifont 字体
     const unifontPath = ctx.path.join(__dirname, 'fonts', 'unifont-17.0.04.otf')
